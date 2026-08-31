@@ -5,7 +5,7 @@
 ## Flujo
 
 1. Visitante completa nombre + email en el gate → `POST /api/request-access`
-2. Josü recibe email con botones **Aprobar** / **Rechazar**
+2. El owner recibe un email con botones **Aprobar** / **Rechazar**
 3. Aprobar → se genera código único (`TXK-XXXX`), se guarda en KV y se envía al solicitante
 4. Rechazar → email elegante de rechazo
 5. El solicitante ingresa su código en el gate → `POST /api/verify` → entra al sitio
@@ -14,9 +14,9 @@
 
 | Variable | Ejemplo | Qué es |
 |---|---|---|
-| `RESEND_API_KEY` | `re_xxxx` | API key de Resend (cuenta de Josü) |
+| `RESEND_API_KEY` | `re_xxxx` | API key de Resend |
 | `FROM_EMAIL` | `Txoko <acceso@tudominio.com>` | Remitente (dominio verificado en Resend) |
-| `OWNER_EMAIL` | `josu@...` | Email de Josü, recibe las solicitudes |
+| `OWNER_EMAIL` | `josu@...` | Casilla que recibe las solicitudes |
 | `SITE_URL` | `https://tudominio.com` | Dominio del sitio (usado en CORS y emails) |
 | `BASE_URL` | `https://txoko-backend.vercel.app` | URL de este deploy (para los links de aprobar/rechazar) |
 
@@ -29,14 +29,14 @@ las inyecta Vercel automáticamente al vincular la base al proyecto.
 ## Deploy paso a paso
 
 ```bash
-# 1. Login con el token de Josü (una sola vez)
-vercel login --token TOKEN_DE_JOSU
+# 1. Login con el token del owner (una sola vez)
+vercel login --token TOKEN_DE_VERCEL
 
-# 2. Desde la raíz del proyecto, vincular (elegir cuenta/scope de Josü)
-vercel link --token TOKEN_DE_JOSU
+# 2. Desde la raíz del proyecto, vincular (elegir la cuenta/scope del owner)
+vercel link --token TOKEN_DE_VERCEL
 
 # 3. Deploy a producción
-vercel --prod --token TOKEN_DE_JOSU
+vercel --prod --token TOKEN_DE_VERCEL
 ```
 
 ## Base de datos (Upstash Redis)
@@ -44,7 +44,7 @@ vercel --prod --token TOKEN_DE_JOSU
 Vercel KV fue discontinuado en diciembre de 2024 y reemplazado por Upstash
 Redis en el Marketplace de Vercel.
 
-1. Dashboard de Vercel (cuenta de Josü) → proyecto → Storage
+1. Dashboard de Vercel (cuenta del owner) → proyecto → Storage
 2. Marketplace → Upstash → Redis, misma región que Resend (us-east-1)
 3. Conectarla al proyecto `txoko-backend`
 4. Redeploy para que tome las variables
@@ -52,7 +52,7 @@ Redis en el Marketplace de Vercel.
 ## Testing end-to-end
 
 1. Con tu propio email: solicitar acceso desde el gate
-2. Verificar que llega el email a Josü (o a tu mail si ponés el tuyo en `OWNER_EMAIL` para probar)
+2. Verificar que llega el email al owner (o al tuyo si lo ponés en `OWNER_EMAIL` para probar)
 3. Click en Aprobar → verificar que llega el código
 4. Ingresar el código en el gate → debe redirigir
 5. Repetir con Rechazar
