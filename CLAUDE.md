@@ -39,10 +39,12 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
 - **Rate limit por IP** en `request-access` (3/hora) y `verify` (10 cada 10 min).
   El CORS no cumple esa función: es una regla del navegador, y el request se
   procesa igual aunque el origen no esté permitido.
-- **El gate no es una barrera real.** La página interna se protege con
-  `sessionStorage` del lado del cliente, así que se puede entrar por URL directa.
-  Es deliberado: Framer no ofrece control server-side, y el objetivo acá es
-  filtrar y dar noción de privado, no proteger información sensible.
+- **La validación del código es server-side; la persistencia de la sesión es
+  client-side.** Framer no expone control a nivel de request, así que la página
+  interna no queda protegida por el servidor. Es una decisión tomada a
+  conciencia: el gate cumple una función de filtro y de curaduría, no de
+  resguardo. No poner detrás información que requiera protección real sin
+  cambiar antes este esquema.
 
 ## Variables de entorno
 
