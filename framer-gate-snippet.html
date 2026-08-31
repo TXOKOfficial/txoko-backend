@@ -1,0 +1,112 @@
+<!-- ═══════════════════════════════════════════════════════
+  SNIPPET PARA EL GATE DE FRAMER
+  Pegar en: Site Settings → General → Custom Code → End of <body>
+  (solo en la página del gate, o global si el gate es la home)
+
+  IMPORTANTE — Reemplazar:
+  1. TU_PROYECTO.vercel.app → la URL real del deploy de Vercel
+  2. Los selectores (#access-code, #access-submit, etc.) por los
+     que correspondan a tus elementos en Framer. En Framer podés
+     asignar un nombre en el panel de la capa y usar
+     [data-framer-name="NombreDeCapa"] como selector.
+  3. "/experiencia" → el path real de la página interna del sitio
+═══════════════════════════════════════════════════════ -->
+
+<script>
+(function () {
+  const API_BASE = "https://TU_PROYECTO.vercel.app/api";
+
+  // ── Selectores (ajustar a tu estructura en Framer) ──
+  const $ = (sel) => document.querySelector(sel);
+  const codeInput   = () => $('[data-framer-name="CodeInput"] input') || $('#access-code');
+  const submitBtn   = () => $('[data-framer-name="EnterButton"]')     || $('#access-submit');
+  const requestBtn  = () => $('[data-framer-name="RequestButton"]')   || $('#request-access');
+  const nameInput   = () => $('[data-framer-name="NameInput"] input') || $('#request-name');
+  const emailInput  = () => $('[data-framer-name="EmailInput"] input')|| $('#request-email');
+  const messageEl   = () => $('[data-framer-name="GateMessage"]')     || $('#gate-message');
+
+  const INNER_PATH = "/experiencia"; // ← página a la que entra con código válido
+
+  function showMessage(text, isError) {
+    const el = messageEl();
+    if (el) {
+      el.textContent = text;
+      el.style.color = isError ? "#a33" : "#1a1a1a";
+      el.style.opacity = "1";
+    }
+  }
+
+  // ── Verificar código ──
+  async function verifyCode() {
+    const input = codeInput();
+    const code = input ? input.value.trim() : "";
+    if (!code) return showMessage("Ingresá tu código.", true);
+
+    showMessage("Verificando…", false);
+    try {
+      const r = await fetch(`${API_BASE}/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      });
+      const data = await r.json();
+      if (data.valid) {
+        // Guardar acceso para no pedir el código de nuevo en la sesión
+        sessionStorage.setItem("txoko_access", "1");
+        window.location.href = INNER_PATH;
+      } else {
+        showMessage("Código inválido.", true);
+      }
+    } catch {
+      showMessage("Error de conexión. Intentá de nuevo.", true);
+    }
+  }
+
+  // ── Solicitar acceso ──
+  async function requestAccess() {
+    const name  = nameInput()  ? nameInput().value.trim()  : "";
+    const email = emailInput() ? emailInput().value.trim() : "";
+    if (!name || !email) return showMessage("Completá tu nombre y email.", true);
+
+    showMessage("Enviando solicitud…", false);
+    try {
+      const r = await fetch(`${API_BASE}/request-access`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email }),
+      });
+      const data = await r.json();
+      if (data.ok) {
+        showMessage(data.message, false);
+      } else {
+        showMessage(data.error || "No se pudo enviar la solicitud.", true);
+      }
+    } catch {
+      showMessage("Error de conexión. Intentá de nuevo.", true);
+    }
+  }
+
+  // ── Bind de eventos ──
+  document.addEventListener("DOMContentLoaded", () => {
+    const enter = submitBtn();
+    const request = requestBtn();
+    if (enter) enter.addEventListener("click", (e) => { e.preventDefault(); verifyCode(); });
+    if (request) request.addEventListener("click", (e) => { e.preventDefault(); requestAccess(); });
+
+    // Enter en el input de código también verifica
+    const input = codeInput();
+    if (input) input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); verifyCode(); }
+    });
+  });
+
+  // ── Protección básica de la página interna ──
+  // Pegar este mismo script global y descomentar esto para
+  // redirigir al gate si alguien entra directo a /experiencia:
+  //
+  // if (window.location.pathname.startsWith(INNER_PATH) &&
+  //     !sessionStorage.getItem("txoko_access")) {
+  //   window.location.href = "/";
+  // }
+})();
+</script>
