@@ -73,26 +73,36 @@ export default async function handler(req, res) {
     const approveUrl = `${base}/api/approve?${query}`;
     const rejectUrl = `${base}/api/reject?${query}`;
 
-    await sendEmail({
-      to: process.env.OWNER_EMAIL,
-      subject: `Nueva solicitud de acceso — ${cleanName}`,
-      html: `
-        <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
-          <h2 style="font-weight: normal; letter-spacing: 2px; text-transform: uppercase; font-size: 16px;">Txoko</h2>
-          <p style="font-size: 15px; line-height: 1.6;">Nueva solicitud de acceso:</p>
-          <p style="font-size: 15px; line-height: 1.8; background: #f7f5f2; padding: 16px 20px; border-left: 3px solid #b8963e;">
-            <strong>${escapeHtml(cleanName)}</strong><br/>
-            ${escapeHtml(cleanEmail)}
-          </p>
-          <div style="margin-top: 32px;">
-            <a href="${approveUrl}" style="display: inline-block; background: #1a1a1a; color: #ffffff; padding: 12px 28px; text-decoration: none; font-size: 13px; letter-spacing: 1px; text-transform: uppercase;">Aprobar</a>
-            &nbsp;&nbsp;
-            <a href="${rejectUrl}" style="display: inline-block; border: 1px solid #1a1a1a; color: #1a1a1a; padding: 11px 28px; text-decoration: none; font-size: 13px; letter-spacing: 1px; text-transform: uppercase;">Rechazar</a>
+    // Si el envio falla, borramos lo que acabamos de guardar. Si no, la
+    // solicitud queda registrada pero nadie se entera de ella, y el
+    // solicitante no puede reintentar durante 30 dias porque el sistema
+    // lo toma como duplicado.
+    try {
+      await sendEmail({
+        to: process.env.OWNER_EMAIL,
+        subject: `Nueva solicitud de acceso — ${cleanName}`,
+        html: `
+          <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
+            <h2 style="font-weight: normal; letter-spacing: 2px; text-transform: uppercase; font-size: 16px;">Txoko</h2>
+            <p style="font-size: 15px; line-height: 1.6;">Nueva solicitud de acceso:</p>
+            <p style="font-size: 15px; line-height: 1.8; background: #f7f5f2; padding: 16px 20px; border-left: 3px solid #b8963e;">
+              <strong>${escapeHtml(cleanName)}</strong><br/>
+              ${escapeHtml(cleanEmail)}
+            </p>
+            <div style="margin-top: 32px;">
+              <a href="${approveUrl}" style="display: inline-block; background: #1a1a1a; color: #ffffff; padding: 12px 28px; text-decoration: none; font-size: 13px; letter-spacing: 1px; text-transform: uppercase;">Aprobar</a>
+              &nbsp;&nbsp;
+              <a href="${rejectUrl}" style="display: inline-block; border: 1px solid #1a1a1a; color: #1a1a1a; padding: 11px 28px; text-decoration: none; font-size: 13px; letter-spacing: 1px; text-transform: uppercase;">Rechazar</a>
+            </div>
+            <p style="font-size: 12px; color: #999; margin-top: 28px;">Cada link te va a pedir una confirmación antes de hacer nada.</p>
           </div>
-          <p style="font-size: 12px; color: #999; margin-top: 28px;">Cada link te va a pedir una confirmación antes de hacer nada.</p>
-        </div>
-      `,
-    });
+        `,
+      });
+    } catch (sendErr) {
+      await redis.del(`request:${requestId}`);
+      await redis.del(`pending:${cleanEmail}`);
+      throw sendErr;
+    }
 
     return res.status(200).json({
       ok: true,
