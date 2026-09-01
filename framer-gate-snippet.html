@@ -4,7 +4,7 @@
   (solo en la página del gate, o global si el gate es la home)
 
   IMPORTANTE — Reemplazar:
-  1. TU_PROYECTO.vercel.app → la URL real del deploy de Vercel
+  1. Verificar API_BASE si cambia la URL del deploy de Vercel
   2. Los selectores (#access-code, #access-submit, etc.) por los
      que correspondan a tus elementos en Framer. En Framer podés
      asignar un nombre en el panel de la capa y usar
@@ -14,7 +14,7 @@
 
 <script>
 (function () {
-  const API_BASE = "https://TU_PROYECTO.vercel.app/api";
+  const API_BASE = "https://txoko-backend.vercel.app/api";
 
   // ── Selectores (ajustar a tu estructura en Framer) ──
   const $ = (sel) => document.querySelector(sel);
