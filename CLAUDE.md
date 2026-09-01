@@ -67,12 +67,17 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
       rate limit por IP, migración de `@vercel/kv` a `@upstash/redis`
 - [x] Dominio `txoko-dining.com` dado de alta en Resend (región `us-east-1`,
       inmutable) y API key generada
+- [x] Base Upstash Redis creada (`txoko-access`, iad1, sin eviction) y vinculada
+- [x] Variables de entorno cargadas y deploy a producción funcionando
+- [x] Circuito verificado de punta a punta con `onboarding@resend.dev`:
+      solicitud → email → pantalla de confirmación → POST → código → `verify` OK.
+      También verificado que el GET no aprueba, que el nombre se escapa, que un
+      token inválido da 404 y que reabrir un link ya usado es idempotente.
 - [ ] Cargar los 3 registros DNS de Resend en GoDaddy y verificar el dominio
-- [ ] Crear la base Upstash Redis y vincularla al proyecto
-- [ ] Cargar variables de entorno en Vercel
-- [ ] Deploy a producción
-- [ ] Pegar el snippet en Framer y ajustar `API_BASE`, selectores y `INNER_PATH`
-- [ ] Testing end-to-end: solicitar → aprobar → código → entrar, y el rechazo
+- [ ] Pasar `FROM_EMAIL` a `Txoko <acceso@txoko-dining.com>` y `OWNER_EMAIL`
+      a la casilla real (hoy están en valores de prueba)
+- [ ] Pegar el snippet en Framer y ajustar selectores e `INNER_PATH`
+- [ ] Probar el camino de rechazo
 - [ ] Lockdown de CORS: sacar el subdominio de Framer de `ALLOWED_ORIGINS`
 
 ## Notas técnicas
@@ -84,5 +89,13 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
 - En GoDaddy los nombres de registro se escriben en forma corta
   (`resend._domainkey`, no `resend._domainkey.txoko-dining.com`). GoDaddy le
   agrega el dominio solo.
+- **El repositorio es público a propósito, no por descuido.** En el plan Hobby
+  de Vercel, un repo privado solo deploya si el autor del commit es el dueño de
+  la cuenta. Como los commits los firma un colaborador, hacerlo privado vuelve a
+  romper todos los deploys. Vercel además cerró los atajos por CLI y deploy
+  hooks. Si algún día se pasa a Pro, se puede volver a privado.
+- No hay secretos en el repo: todo vive en variables de entorno de Vercel y el
+  `.gitignore` cubre los `.env`. Mantener esa disciplina, ahora el código es
+  público.
 - Las integraciones se cablean siempre contra el dominio de producción, no
   contra entornos temporales, porque CORS y los templates lo referencian.
