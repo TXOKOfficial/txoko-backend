@@ -22,6 +22,12 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
 - **Storage**: Upstash Redis vía Marketplace de Vercel
   Keys: `request:{id}`, `pending:{email}`, `code:{CODE}`, `rl:{scope}:{ip}`
 - **Emails**: Resend, API REST directa, sin SDK
+- **Idioma**: todo el texto de cara al usuario (emails, pantallas de
+  confirmación, mensajes del gate) está en inglés. El público es de Bay Area.
+  Los comentarios del código también, según convención del proyecto.
+- **Datos del formulario**: el gate manda `name`, `email`, `city`, `guests`,
+  `month` y `message`. Solo los dos primeros son obligatorios; el resto se
+  reenvía al email del owner para que pueda decidir sin tener que preguntar.
 - **Gestión de solicitudes**: por email, sin dashboard. Cada solicitud lleva su
   propio token en el link; no hay un secreto global de admin.
 
@@ -40,6 +46,11 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
 - **Todo dato del visitante pasa por `escapeHtml()`** antes de entrar al HTML de
   un email. Sin eso, el campo "nombre" permite inyectar markup en el mail del
   owner, incluido un botón de aprobar falso.
+- **Charset explícito en los emails.** El HTML va envuelto en `emailLayout()`
+  con `<meta charset="utf-8">` y la llamada a Resend declara
+  `charset=utf-8`. Sin eso, los nombres con acento llegaban partidos
+  ("Beltrán" se veía "Beltr?n") y solo se notaba en el dato del visitante,
+  no en el texto fijo.
 - **Rate limit por IP** en `request-access` (3/hora) y `verify` (10 cada 10 min).
   El CORS no cumple esa función: es una regla del navegador, y el request se
   procesa igual aunque el origen no esté permitido.
@@ -81,8 +92,16 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
 - [ ] Cargar los 3 registros DNS de Resend en GoDaddy y verificar el dominio
 - [ ] Pasar `FROM_EMAIL` a `Txoko <acceso@txoko-dining.com>` y `OWNER_EMAIL`
       a la casilla real (hoy están en valores de prueba)
-- [ ] Pegar el snippet en Framer y ajustar selectores e `INNER_PATH`
-- [ ] Probar el camino de rechazo
+- [x] Dominio verificado en Resend y envíos saliendo desde
+      `acceso@txoko-dining.com` (esa casilla no existe ni necesita existir)
+- [x] Circuito completo probado contra una casilla real, ida y vuelta:
+      aprobación con código válido y rechazo con su email
+- [x] `Reply-To` verificado: responder el aviso le escribe al solicitante
+- [x] Copy migrado a inglés y los seis campos del formulario llegando al owner
+- [ ] Pegar el snippet en Framer, renombrar las capas según los selectores y
+      poner el `INNER_PATH` real
+- [ ] Volver a probar de punta a punta desde el formulario real, con un
+      nombre con acento, para confirmar el arreglo de charset
 - [ ] Lockdown de CORS: sacar el subdominio de Framer de `ALLOWED_ORIGINS`
 
 ## Notas técnicas

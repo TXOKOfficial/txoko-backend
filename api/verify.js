@@ -1,6 +1,6 @@
 // api/verify.js
-// Endpoint 4 — El gate de Framer manda el codigo ingresado.
-// Responde si es valido o no.
+// Endpoint 4 — The Framer gate sends the code the visitor typed.
+// Answers whether it is valid.
 
 import { redis, applyCors, clientIp, rateLimit } from "../lib/utils.js";
 
@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Freno a la fuerza bruta: sin esto se pueden probar codigos sin limite.
+    // Brute-force brake: without this, codes can be guessed without limit.
     const ip = clientIp(req);
     const allowed = await rateLimit(`rl:verify:${ip}`, {
       max: 10,
@@ -20,13 +20,13 @@ export default async function handler(req, res) {
     if (!allowed) {
       return res.status(429).json({
         valid: false,
-        error: "Demasiados intentos. Esperá unos minutos.",
+        error: "Too many attempts. Please wait a few minutes.",
       });
     }
 
     const { code } = req.body || {};
     if (!code || typeof code !== "string") {
-      return res.status(400).json({ valid: false, error: "Código requerido." });
+      return res.status(400).json({ valid: false, error: "Access code required." });
     }
 
     const normalized = code.trim().toUpperCase();
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ valid: false });
     }
 
-    // Registrar ultimo uso (util para metricas / auditoria)
+    // Record last use (useful for metrics and auditing)
     entry.lastUsedAt = new Date().toISOString();
     entry.uses = (entry.uses || 0) + 1;
     await redis.set(`code:${normalized}`, entry);
@@ -44,6 +44,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ valid: true });
   } catch (err) {
     console.error("verify error:", err);
-    return res.status(500).json({ valid: false, error: "Error interno." });
+    return res.status(500).json({ valid: false, error: "Something went wrong." });
   }
 }

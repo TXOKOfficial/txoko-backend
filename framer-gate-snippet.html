@@ -1,31 +1,48 @@
 <!-- ═══════════════════════════════════════════════════════
-  SNIPPET PARA EL GATE DE FRAMER
-  Pegar en: Site Settings → General → Custom Code → End of <body>
-  (solo en la página del gate, o global si el gate es la home)
+  SNIPPET FOR THE FRAMER GATE
+  Paste into: Site Settings → General → Custom Code → End of <body>
 
-  IMPORTANTE — Reemplazar:
-  1. Verificar API_BASE si cambia la URL del deploy de Vercel
-  2. Los selectores (#access-code, #access-submit, etc.) por los
-     que correspondan a tus elementos en Framer. En Framer podés
-     asignar un nombre en el panel de la capa y usar
-     [data-framer-name="NombreDeCapa"] como selector.
-  3. "/experiencia" → el path real de la página interna del sitio
+  BEFORE IT WORKS, CHECK TWO THINGS:
+
+  1. INNER_PATH below must be the real path of the page a valid code
+     unlocks (the services / experience page).
+
+  2. The selectors below must match your Framer layers. In Framer you can
+     name a layer in the right-hand panel and target it with
+     [data-framer-name="LayerName"]. Rename the layers to match this list
+     and nothing else needs touching.
+
+  The form sends six fields: name, email, city, guests, month, message.
+  Only name and email are required; the rest are passed through to the
+  owner's email so they can decide without writing back to ask.
 ═══════════════════════════════════════════════════════ -->
 
 <script>
 (function () {
   const API_BASE = "https://txoko-backend.vercel.app/api";
 
-  // ── Selectores (ajustar a tu estructura en Framer) ──
-  const $ = (sel) => document.querySelector(sel);
-  const codeInput   = () => $('[data-framer-name="CodeInput"] input') || $('#access-code');
-  const submitBtn   = () => $('[data-framer-name="EnterButton"]')     || $('#access-submit');
-  const requestBtn  = () => $('[data-framer-name="RequestButton"]')   || $('#request-access');
-  const nameInput   = () => $('[data-framer-name="NameInput"] input') || $('#request-name');
-  const emailInput  = () => $('[data-framer-name="EmailInput"] input')|| $('#request-email');
-  const messageEl   = () => $('[data-framer-name="GateMessage"]')     || $('#gate-message');
+  // ← The page a valid code unlocks. CHANGE THIS.
+  const INNER_PATH = "/experience";
 
-  const INNER_PATH = "/experiencia"; // ← página a la que entra con código válido
+  const $ = (sel) => document.querySelector(sel);
+
+  // Reads a value from a Framer layer, falling back to a plain element id.
+  function readField(layerName, elementId) {
+    const el =
+      $('[data-framer-name="' + layerName + '"] input') ||
+      $('[data-framer-name="' + layerName + '"] textarea') ||
+      $("#" + elementId);
+    return el ? el.value.trim() : "";
+  }
+
+  const codeInput = () =>
+    $('[data-framer-name="CodeInput"] input') || $("#access-code");
+  const submitBtn = () =>
+    $('[data-framer-name="EnterButton"]') || $("#access-submit");
+  const requestBtn = () =>
+    $('[data-framer-name="RequestButton"]') || $("#request-access");
+  const messageEl = () =>
+    $('[data-framer-name="GateMessage"]') || $("#gate-message");
 
   function showMessage(text, isError) {
     const el = messageEl();
@@ -36,73 +53,97 @@
     }
   }
 
-  // ── Verificar código ──
+  // ── Verify a code ──
   async function verifyCode() {
     const input = codeInput();
     const code = input ? input.value.trim() : "";
-    if (!code) return showMessage("Ingresá tu código.", true);
+    if (!code) return showMessage("Please enter your code.", true);
 
-    showMessage("Verificando…", false);
+    showMessage("Verifying…", false);
     try {
-      const r = await fetch(`${API_BASE}/verify`, {
+      const r = await fetch(API_BASE + "/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ code: code }),
       });
       const data = await r.json();
       if (data.valid) {
-        // Guardar acceso para no pedir el código de nuevo en la sesión
+        // Remember access so the code is not asked again this session
         sessionStorage.setItem("txoko_access", "1");
         window.location.href = INNER_PATH;
       } else {
-        showMessage("Código inválido.", true);
+        showMessage(data.error || "That code is not valid.", true);
       }
-    } catch {
-      showMessage("Error de conexión. Intentá de nuevo.", true);
+    } catch (e) {
+      showMessage("Connection error. Please try again.", true);
     }
   }
 
-  // ── Solicitar acceso ──
+  // ── Request access ──
   async function requestAccess() {
-    const name  = nameInput()  ? nameInput().value.trim()  : "";
-    const email = emailInput() ? emailInput().value.trim() : "";
-    if (!name || !email) return showMessage("Completá tu nombre y email.", true);
+    const payload = {
+      name: readField("NameInput", "request-name"),
+      email: readField("EmailInput", "request-email"),
+      city: readField("CityInput", "request-city"),
+      guests: readField("GuestsInput", "request-guests"),
+      month: readField("MonthInput", "request-month"),
+      message: readField("MessageInput", "request-message"),
+    };
 
-    showMessage("Enviando solicitud…", false);
+    if (!payload.name || !payload.email) {
+      return showMessage("Please enter your name and email.", true);
+    }
+
+    showMessage("Sending your request…", false);
     try {
-      const r = await fetch(`${API_BASE}/request-access`, {
+      const r = await fetch(API_BASE + "/request-access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email }),
+        body: JSON.stringify(payload),
       });
       const data = await r.json();
       if (data.ok) {
         showMessage(data.message, false);
       } else {
-        showMessage(data.error || "No se pudo enviar la solicitud.", true);
+        showMessage(data.error || "Your request could not be sent.", true);
       }
-    } catch {
-      showMessage("Error de conexión. Intentá de nuevo.", true);
+    } catch (e) {
+      showMessage("Connection error. Please try again.", true);
     }
   }
 
-  // ── Bind de eventos ──
-  document.addEventListener("DOMContentLoaded", () => {
+  // ── Wiring ──
+  document.addEventListener("DOMContentLoaded", function () {
     const enter = submitBtn();
     const request = requestBtn();
-    if (enter) enter.addEventListener("click", (e) => { e.preventDefault(); verifyCode(); });
-    if (request) request.addEventListener("click", (e) => { e.preventDefault(); requestAccess(); });
+    if (enter)
+      enter.addEventListener("click", function (e) {
+        e.preventDefault();
+        verifyCode();
+      });
+    if (request)
+      request.addEventListener("click", function (e) {
+        e.preventDefault();
+        requestAccess();
+      });
 
-    // Enter en el input de código también verifica
+    // Pressing Enter in the code field also verifies
     const input = codeInput();
-    if (input) input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") { e.preventDefault(); verifyCode(); }
-    });
+    if (input)
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          verifyCode();
+        }
+      });
   });
 
-  // ── Protección básica de la página interna ──
-  // Pegar este mismo script global y descomentar esto para
-  // redirigir al gate si alguien entra directo a /experiencia:
+  // ── Basic guard on the inner page ──
+  // Paste this same script globally and uncomment to bounce anyone who
+  // lands on the inner page without going through the gate.
+  //
+  // Note: this is a courtesy redirect, not a security boundary. Framer has
+  // no server-side control, so anyone who wants in can still get in.
   //
   // if (window.location.pathname.startsWith(INNER_PATH) &&
   //     !sessionStorage.getItem("txoko_access")) {
