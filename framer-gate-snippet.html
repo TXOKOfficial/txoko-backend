@@ -70,41 +70,43 @@
   }
 
   // ── 1. Gate: turn the dead link into a real input ─────
+  // Framer hydrates after this script runs and re-renders the hero, so the
+  // label is located by its text, never by the link's href: an earlier
+  // version stripped that href and then could not find the element again on
+  // the next pass, leaving the gate with neither a link nor a field.
+  // Nothing here is destructive to Framer's own markup beyond swapping that
+  // one label, and it re-applies itself whenever React puts the label back.
+  function findGateLabel() {
+    var paragraphs = document.querySelectorAll("p");
+    for (var i = 0; i < paragraphs.length; i++) {
+      if (
+        paragraphs[i].children.length === 0 &&
+        /enter access code/i.test(paragraphs[i].textContent || "")
+      ) {
+        return paragraphs[i];
+      }
+    }
+    return null;
+  }
+
   function upgradeGate() {
-    var link = null;
-    var anchors = document.querySelectorAll("a");
-    for (var i = 0; i < anchors.length; i++) {
-      var href = anchors[i].getAttribute("href") || "";
-      if (/access code/i.test(anchors[i].innerText || "") && /services/.test(href)) {
-        link = anchors[i];
-        break;
-      }
-    }
-    if (!link || link.dataset.txokoGate) return;
+    var existing = document.getElementById("txoko-code");
+    if (existing && existing.isConnected) return;
 
-    var label = null;
-    var paragraphs = link.querySelectorAll("p");
-    for (var j = 0; j < paragraphs.length; j++) {
-      if (/access code/i.test(paragraphs[j].textContent || "")) {
-        label = paragraphs[j];
-        break;
-      }
-    }
+    var label = findGateLabel();
     if (!label) return;
-
-    link.dataset.txokoGate = "1";
-    messageAnchor = link;
 
     var cs = window.getComputedStyle(label);
     var input = document.createElement("input");
     input.type = "text";
+    input.id = "txoko-code";
     input.placeholder = (label.textContent || "Enter access code").trim();
     input.setAttribute("aria-label", "Access code");
     input.setAttribute("autocomplete", "off");
     input.spellcheck = false;
 
-    // Inherit the typography of the label being replaced, so the field
-    // keeps looking like the design even if the styles change later.
+    // Inherit the typography of the label it replaces, so the field keeps
+    // looking like the design even if those styles change later.
     [
       "fontFamily",
       "fontSize",
@@ -123,7 +125,6 @@
     input.style.margin = "0";
     input.style.width = "100%";
 
-    // The placeholder keeps the muted tone the label had.
     if (!document.getElementById("txoko-gate-style")) {
       var style = document.createElement("style");
       style.id = "txoko-gate-style";
@@ -131,48 +132,58 @@
         "#txoko-code::placeholder{color:" + cs.color + ";opacity:1;}";
       document.head.appendChild(style);
     }
-    input.id = "txoko-code";
 
+    messageAnchor = label.closest("a") || label.parentElement;
     label.parentNode.replaceChild(input, label);
 
-    // The link must stop navigating: it used to walk straight in.
-    link.removeAttribute("href");
-    link.style.cursor = "text";
-    link.addEventListener(
-      "click",
-      function (e) {
-        e.preventDefault();
-        input.focus();
-      },
-      true
-    );
-
-    input.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        verifyCode(input);
-      }
-    });
-
-    // The arrow becomes the submit control.
-    var arrow = null;
-    for (var k = 0; k < paragraphs.length; k++) {
-      if (/[→>]/.test(paragraphs[k].textContent || "")) {
-        arrow = paragraphs[k].parentElement || paragraphs[k];
-        break;
-      }
-    }
-    if (arrow) {
-      arrow.style.cursor = "pointer";
-      arrow.addEventListener(
+    // The control used to be a plain link into /services. The href is left
+    // alone (React would restore it anyway) and the navigation is cancelled
+    // on the way out instead.
+    var link = input.closest("a");
+    if (link && !link.dataset.txokoBlocked) {
+      link.dataset.txokoBlocked = "1";
+      link.addEventListener(
         "click",
         function (e) {
           e.preventDefault();
           e.stopPropagation();
-          verifyCode(input);
+          var field = document.getElementById("txoko-code");
+          if (field) field.focus();
         },
         true
       );
+    }
+
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        verifyCode(input);
+      }
+    });
+
+    // The arrow beside the field becomes the submit control.
+    var scope = link || input.parentElement.parentElement || document;
+    var candidates = scope.querySelectorAll("p");
+    for (var k = 0; k < candidates.length; k++) {
+      if (/[→>]/.test(candidates[k].textContent || "")) {
+        var arrow = candidates[k].parentElement || candidates[k];
+        if (!arrow.dataset.txokoArrow) {
+          arrow.dataset.txokoArrow = "1";
+          arrow.style.cursor = "pointer";
+          arrow.addEventListener(
+            "click",
+            function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              var field = document.getElementById("txoko-code");
+              if (field) verifyCode(field);
+            },
+            true
+          );
+        }
+        break;
+      }
     }
   }
 
@@ -289,9 +300,21 @@
     init();
   }
 
-  // Framer navigates client-side, so re-run the wiring as the DOM changes.
+  // Framer navigates client-side and re-renders after hydration, so the
+  // wiring is re-applied as the DOM settles. Debounced, because hydration
+  // fires a burst of mutations.
+  var pending = null;
   new MutationObserver(function () {
-    init();
+    if (pending) return;
+    pending = setTimeout(function () {
+      pending = null;
+      init();
+    }, 120);
   }).observe(document.documentElement, { childList: true, subtree: true });
+
+  // Belt and braces for slow hydration.
+  [400, 1200, 2500].forEach(function (delay) {
+    setTimeout(init, delay);
+  });
 })();
 </script>
