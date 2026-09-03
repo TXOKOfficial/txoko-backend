@@ -2,15 +2,15 @@
   SNIPPET FOR THE FRAMER GATE
   Paste into: Site Settings → General → Custom Code → End of <body>
 
-  BEFORE IT WORKS, CHECK TWO THINGS:
+  BEFORE IT WORKS, CHECK ONE THING:
 
-  1. INNER_PATH below must be the real path of the page a valid code
-     unlocks (the services / experience page).
+  The selectors below must match your Framer layers. In Framer, name a
+  layer in the right-hand panel and it becomes targetable as
+  [data-framer-name="LayerName"]. Rename the gate and form layers to match
+  the names used below and nothing else needs touching.
 
-  2. The selectors below must match your Framer layers. In Framer you can
-     name a layer in the right-hand panel and target it with
-     [data-framer-name="LayerName"]. Rename the layers to match this list
-     and nothing else needs touching.
+  Page paths are already set to this project: /services is unlocked by a
+  valid code, /access-requested is where a submitted form lands.
 
   The form sends six fields: name, email, city, guests, month, message.
   Only name and email are required; the rest are passed through to the
@@ -21,8 +21,11 @@
 (function () {
   const API_BASE = "https://txoko-backend.vercel.app/api";
 
-  // ← The page a valid code unlocks. CHANGE THIS.
-  const INNER_PATH = "/experience";
+  // The page a valid code unlocks.
+  const INNER_PATH = "/services";
+
+  // Where to land after a request is submitted successfully.
+  const REQUESTED_PATH = "/access-requested";
 
   const $ = (sel) => document.querySelector(sel);
 
@@ -104,6 +107,7 @@
       const data = await r.json();
       if (data.ok) {
         showMessage(data.message, false);
+        window.location.href = REQUESTED_PATH;
       } else {
         showMessage(data.error || "Your request could not be sent.", true);
       }

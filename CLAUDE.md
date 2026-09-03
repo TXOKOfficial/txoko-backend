@@ -96,8 +96,13 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
       aprobación con código válido y rechazo con su email
 - [x] `Reply-To` verificado: responder el aviso le escribe al solicitante
 - [x] Copy migrado a inglés y los seis campos del formulario llegando al owner
-- [ ] Pegar el snippet en Framer, renombrar las capas según los selectores y
-      poner el `INNER_PATH` real
+- [x] Paths reales del sitio puestos en el snippet: `/services` es la página
+      que abre el código y `/access-requested` el destino tras enviar el form
+- [ ] **Bloqueado**: Dario tiene *View Only* en el proyecto de Framer, que está
+      en el workspace de Josü (plan BASIC). Hasta que lo pase a *Full Access*
+      no se puede pegar el snippet ni renombrar capas, y el CLI de Framer
+      tampoco puede abrir el proyecto.
+- [ ] Pegar el snippet en Framer y renombrar las capas según los selectores
 - [x] Charset verificado en producción: "Ignacio Beltrán" y "San Sebastián"
       renderizan bien en el email del owner
 - [ ] Volver a probar desde el formulario real de Framer una vez cableado
