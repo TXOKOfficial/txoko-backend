@@ -53,8 +53,10 @@
     var el = document.createElement("div");
     el.id = "txoko-message";
     el.style.cssText =
-      "font-family:inherit;font-size:11px;letter-spacing:2px;text-transform:uppercase;" +
-      "margin-top:10px;min-height:14px;opacity:0;transition:opacity .2s;";
+      "font-size:11px;letter-spacing:2px;text-transform:uppercase;text-align:left;" +
+      "margin-top:12px;min-height:13px;opacity:0;transition:opacity .2s;pointer-events:none;";
+    var field = document.getElementById("txoko-code");
+    if (field) el.style.fontFamily = field.style.fontFamily;
     anchor.parentElement.insertBefore(el, anchor.nextSibling);
     return el;
   }
@@ -133,7 +135,13 @@
       document.head.appendChild(style);
     }
 
-    messageAnchor = label.closest("a") || label.parentElement;
+    // Anchor the feedback line under the whole gate row, not inside it:
+    // the label sits in its own flex cell next to the arrow, and inserting
+    // there crams the message up against it.
+    messageAnchor =
+      label.closest("a") ||
+      (label.parentElement && label.parentElement.parentElement) ||
+      label.parentElement;
     label.parentNode.replaceChild(input, label);
 
     // The control used to be a plain link into /services. The href is left
