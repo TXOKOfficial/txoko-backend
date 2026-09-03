@@ -2,19 +2,25 @@
   TXOKO — GATE WIRING
   Paste into: Site Settings → Code → Add → End of <body>, applied to All pages.
 
-  This hooks into the site as it is actually built:
+  Three jobs, all done at runtime against the markup Framer publishes, so
+  nothing here depends on editing the canvas:
 
-  · /request-access has a native Framer form whose fields are already named
-    name, email, city, guests, preferredMonth and message. The script
-    intercepts its submit, posts to the backend and sends the visitor to
-    /access-requested. Framer's own hidden spam-trap fields are ignored.
+  1. HOME — the "ENTER ACCESS CODE" control is designed as a link straight
+     to /services, with no field to type into. This turns it into a real
+     input, copying the typography from the label it replaces, and wires
+     the arrow and the Enter key to verify the code.
 
-  · The gate needs a real text input for the access code. Give that input
-    the layer name "CodeInput" in Framer (or an input named "code") and the
-    script will find it. The submit control next to it should be named
-    "EnterButton".
+  2. /request-access — the native Framer form already names its fields
+     name, email, city, guests, preferredMonth and message. Its submit is
+     intercepted and posted to the backend, then the visitor lands on
+     /access-requested. Framer's hidden spam-trap fields are ignored.
 
-  · /services is the page a valid code unlocks.
+  3. /services — visitors who never verified a code are sent back to the
+     gate. A courtesy redirect, not a security boundary: Framer has no
+     server-side control, so this stops the curious, not the determined.
+
+  If any element is missing the script leaves the page untouched rather
+  than breaking it.
 ═══════════════════════════════════════════════════════ -->
 
 <script>
@@ -24,7 +30,7 @@
   var REQUESTED_PATH = "/access-requested";
   var STORAGE_KEY = "txoko_access";
 
-  // Fields the backend accepts, mapped from the names Framer already uses.
+  // Backend field names, keyed by the names Framer already uses.
   var FIELD_MAP = {
     name: "name",
     email: "email",
@@ -34,33 +40,176 @@
     message: "message",
   };
 
-  function findMessageEl() {
-    return (
+  // ── Feedback line ─────────────────────────────────────
+  // Uses a layer named GateMessage when one exists; otherwise it creates a
+  // line under the gate so errors are never silent.
+  function ensureMessageEl(anchor) {
+    var existing =
       document.querySelector('[data-framer-name="GateMessage"]') ||
-      document.getElementById("gate-message")
-    );
+      document.getElementById("txoko-message");
+    if (existing) return existing;
+    if (!anchor || !anchor.parentElement) return null;
+
+    var el = document.createElement("div");
+    el.id = "txoko-message";
+    el.style.cssText =
+      "font-family:inherit;font-size:11px;letter-spacing:2px;text-transform:uppercase;" +
+      "margin-top:10px;min-height:14px;opacity:0;transition:opacity .2s;";
+    anchor.parentElement.insertBefore(el, anchor.nextSibling);
+    return el;
   }
+
+  var messageAnchor = null;
 
   function showMessage(text, isError) {
-    var el = findMessageEl();
-    if (el) {
-      el.textContent = text;
-      el.style.color = isError ? "#a33" : "inherit";
-      el.style.opacity = "1";
-      return;
-    }
-    // No message layer on the page yet: fall back to something visible so a
-    // failure is never silent.
-    if (isError) window.alert(text);
+    var el = ensureMessageEl(messageAnchor);
+    if (!el) return;
+    el.textContent = text;
+    el.style.color = isError ? "#c8776b" : "rgba(236,227,213,0.7)";
+    el.style.opacity = "1";
   }
 
-  // ── Access request form ───────────────────────────────
-  // Reads only the fields we know about. Framer adds hidden honeypot inputs
-  // (website, company, subject, title...) that must not be forwarded.
+  // ── 1. Gate: turn the dead link into a real input ─────
+  function upgradeGate() {
+    var link = null;
+    var anchors = document.querySelectorAll("a");
+    for (var i = 0; i < anchors.length; i++) {
+      var href = anchors[i].getAttribute("href") || "";
+      if (/access code/i.test(anchors[i].innerText || "") && /services/.test(href)) {
+        link = anchors[i];
+        break;
+      }
+    }
+    if (!link || link.dataset.txokoGate) return;
+
+    var label = null;
+    var paragraphs = link.querySelectorAll("p");
+    for (var j = 0; j < paragraphs.length; j++) {
+      if (/access code/i.test(paragraphs[j].textContent || "")) {
+        label = paragraphs[j];
+        break;
+      }
+    }
+    if (!label) return;
+
+    link.dataset.txokoGate = "1";
+    messageAnchor = link;
+
+    var cs = window.getComputedStyle(label);
+    var input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = (label.textContent || "Enter access code").trim();
+    input.setAttribute("aria-label", "Access code");
+    input.setAttribute("autocomplete", "off");
+    input.spellcheck = false;
+
+    // Inherit the typography of the label being replaced, so the field
+    // keeps looking like the design even if the styles change later.
+    [
+      "fontFamily",
+      "fontSize",
+      "fontWeight",
+      "letterSpacing",
+      "textTransform",
+      "lineHeight",
+    ].forEach(function (prop) {
+      input.style[prop] = cs[prop];
+    });
+    input.style.color = "rgb(236,227,213)"; // typed text, full strength
+    input.style.background = "transparent";
+    input.style.border = "0";
+    input.style.outline = "none";
+    input.style.padding = "0";
+    input.style.margin = "0";
+    input.style.width = "100%";
+
+    // The placeholder keeps the muted tone the label had.
+    if (!document.getElementById("txoko-gate-style")) {
+      var style = document.createElement("style");
+      style.id = "txoko-gate-style";
+      style.textContent =
+        "#txoko-code::placeholder{color:" + cs.color + ";opacity:1;}";
+      document.head.appendChild(style);
+    }
+    input.id = "txoko-code";
+
+    label.parentNode.replaceChild(input, label);
+
+    // The link must stop navigating: it used to walk straight in.
+    link.removeAttribute("href");
+    link.style.cursor = "text";
+    link.addEventListener(
+      "click",
+      function (e) {
+        e.preventDefault();
+        input.focus();
+      },
+      true
+    );
+
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        verifyCode(input);
+      }
+    });
+
+    // The arrow becomes the submit control.
+    var arrow = null;
+    for (var k = 0; k < paragraphs.length; k++) {
+      if (/[→>]/.test(paragraphs[k].textContent || "")) {
+        arrow = paragraphs[k].parentElement || paragraphs[k];
+        break;
+      }
+    }
+    if (arrow) {
+      arrow.style.cursor = "pointer";
+      arrow.addEventListener(
+        "click",
+        function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          verifyCode(input);
+        },
+        true
+      );
+    }
+  }
+
+  async function verifyCode(input) {
+    var code = (input.value || "").trim();
+    if (!code) {
+      showMessage("Please enter your code.", true);
+      return;
+    }
+
+    showMessage("Verifying…", false);
+    try {
+      var r = await fetch(API_BASE + "/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code }),
+      });
+      var data = await r.json();
+      if (data.valid) {
+        try {
+          sessionStorage.setItem(STORAGE_KEY, "1");
+        } catch (e) {}
+        window.location.href = INNER_PATH;
+      } else {
+        showMessage(data.error || "That code is not valid.", true);
+      }
+    } catch (e) {
+      showMessage("Connection error. Please try again.", true);
+    }
+  }
+
+  // ── 2. Access request form ────────────────────────────
   function collectFields(form) {
     var payload = {};
     Object.keys(FIELD_MAP).forEach(function (formName) {
       var field = form.querySelector('[name="' + formName + '"]');
+      // offsetParent filters out Framer's hidden honeypot inputs.
       if (field && field.offsetParent !== null) {
         payload[FIELD_MAP[formName]] = (field.value || "").trim();
       }
@@ -98,11 +247,11 @@
     var forms = document.querySelectorAll("form");
     Array.prototype.forEach.call(forms, function (form) {
       if (form.dataset.txokoWired) return;
-      // Only the form that carries the fields we expect.
       if (!form.querySelector('[name="email"]') || !form.querySelector('[name="name"]')) return;
       form.dataset.txokoWired = "1";
+      messageAnchor = messageAnchor || form;
 
-      // Capture phase so Framer's own handler does not also fire.
+      // Capture phase, so Framer's own submit handler does not also run.
       form.addEventListener(
         "submit",
         function (e) {
@@ -115,92 +264,24 @@
     });
   }
 
-  // ── Access code entry ─────────────────────────────────
-  function findCodeInput() {
-    var wrapper = document.querySelector('[data-framer-name="CodeInput"]');
-    if (wrapper) {
-      var inner = wrapper.querySelector("input");
-      if (inner) return inner;
-      if (wrapper.tagName === "INPUT") return wrapper;
-    }
-    return document.querySelector('input[name="code"]') || document.getElementById("access-code");
-  }
-
-  async function verifyCode() {
-    var input = findCodeInput();
-    var code = input ? (input.value || "").trim() : "";
-    if (!code) {
-      showMessage("Please enter your code.", true);
-      return;
-    }
-
-    showMessage("Verifying…", false);
-    try {
-      var r = await fetch(API_BASE + "/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code }),
-      });
-      var data = await r.json();
-      if (data.valid) {
-        try {
-          sessionStorage.setItem(STORAGE_KEY, "1");
-        } catch (e) {}
-        window.location.href = INNER_PATH;
-      } else {
-        showMessage(data.error || "That code is not valid.", true);
-      }
-    } catch (e) {
-      showMessage("Connection error. Please try again.", true);
-    }
-  }
-
-  function wireGate() {
-    var input = findCodeInput();
-    if (!input || input.dataset.txokoWired) return;
-    input.dataset.txokoWired = "1";
-
-    input.addEventListener("keydown", function (e) {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        verifyCode();
-      }
-    });
-
-    var button =
-      document.querySelector('[data-framer-name="EnterButton"]') ||
-      document.getElementById("access-submit");
-    if (button) {
-      button.addEventListener(
-        "click",
-        function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          verifyCode();
-        },
-        true
-      );
-    }
-  }
-
-  // ── Courtesy guard on the inner page ──────────────────
-  // Not a security boundary: Framer offers no server-side control, so this
-  // only redirects visitors who never went through the gate.
+  // ── 3. Courtesy guard on the inner page ───────────────
   function guardInnerPage() {
     if (window.location.pathname.indexOf(INNER_PATH) !== 0) return;
     var granted = false;
     try {
       granted = sessionStorage.getItem(STORAGE_KEY) === "1";
     } catch (e) {
-      granted = true; // storage blocked: do not lock anyone out
+      granted = true; // storage blocked: never lock a visitor out over this
     }
     if (!granted) window.location.replace("/");
   }
 
   function init() {
+    upgradeGate();
     wireRequestForm();
-    wireGate();
   }
+
+  guardInnerPage();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", init);
@@ -208,12 +289,9 @@
     init();
   }
 
-  // Framer navigates client-side, so re-wire when the DOM changes.
-  var observer = new MutationObserver(function () {
+  // Framer navigates client-side, so re-run the wiring as the DOM changes.
+  new MutationObserver(function () {
     init();
-  });
-  observer.observe(document.body, { childList: true, subtree: true });
-
-  // guardInnerPage(); // ← uncomment once the gate has a real code input
+  }).observe(document.documentElement, { childList: true, subtree: true });
 })();
 </script>
