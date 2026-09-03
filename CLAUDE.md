@@ -98,8 +98,11 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
 - [x] Copy migrado a inglés y los seis campos del formulario llegando al owner
 - [ ] Pegar el snippet en Framer, renombrar las capas según los selectores y
       poner el `INNER_PATH` real
-- [ ] Volver a probar de punta a punta desde el formulario real, con un
-      nombre con acento, para confirmar el arreglo de charset
+- [x] Charset verificado en producción: "Ignacio Beltrán" y "San Sebastián"
+      renderizan bien en el email del owner
+- [ ] Volver a probar desde el formulario real de Framer una vez cableado
+- [ ] Cambiar `OWNER_EMAIL` al mail de Josü cuando esté todo aprobado
+      (hoy apunta a la casilla de Dario para no molestarlo con pruebas)
 - [ ] Lockdown de CORS: sacar el subdominio de Framer de `ALLOWED_ORIGINS`
 
 ## Notas técnicas
