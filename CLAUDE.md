@@ -31,6 +31,10 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
   pantalla con un botón. Gmail y Outlook visitan los links de los mails por su
   cuenta para escanearlos, así que un GET que ejecuta la acción termina
   aprobando solicitudes solo.
+- **Todo mail lleva `Reply-To`.** `FROM_EMAIL` es una dirección del dominio
+  verificado que no existe como casilla (Resend no lo necesita para enviar),
+  así que sin `Reply-To` cualquier respuesta rebota en silencio. El aviso al
+  owner responde al solicitante; los mails al solicitante responden al owner.
 - **Token único por solicitud**, no un `ADMIN_SECRET` global. Si un mail se
   reenvía, ese token no sirve para gestionar ninguna otra solicitud.
 - **Todo dato del visitante pasa por `escapeHtml()`** antes de entrar al HTML de
@@ -52,7 +56,8 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
 |---|---|
 | `RESEND_API_KEY` | API key de Resend, permiso `Sending access` acotado al dominio |
 | `FROM_EMAIL` | Remitente, ej: `Txoko <acceso@txoko-dining.com>` |
-| `OWNER_EMAIL` | Casilla que recibe las solicitudes |
+| `OWNER_EMAIL` | Casilla real que recibe las solicitudes |
+| `REPLY_TO` | Opcional. Casilla a la que van las respuestas de los solicitantes. Si no se define, se usa `OWNER_EMAIL` |
 | `SITE_URL` | Dominio real del sitio, usado en CORS y en los emails |
 | `BASE_URL` | URL de este deploy en Vercel, usada en los links de gestión |
 

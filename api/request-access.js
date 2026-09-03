@@ -80,6 +80,8 @@ export default async function handler(req, res) {
     try {
       await sendEmail({
         to: process.env.OWNER_EMAIL,
+        // Responder este mail le escribe directo al solicitante.
+        replyTo: cleanEmail,
         subject: `Nueva solicitud de acceso — ${cleanName}`,
         html: `
           <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
