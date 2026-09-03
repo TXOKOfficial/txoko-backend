@@ -123,9 +123,15 @@
     input.style.background = "transparent";
     input.style.border = "0";
     input.style.outline = "none";
-    input.style.padding = "0";
-    input.style.margin = "0";
     input.style.width = "100%";
+    // The label was a 16px-tall line inside a taller row. Left at that size
+    // the field is a sliver to aim at: clicking the underline, or a few
+    // pixels high, misses it entirely. Padding grows the hit area and the
+    // negative margin cancels it out so the layout does not move.
+    input.style.padding = "12px 0";
+    input.style.margin = "-12px 0";
+    input.style.position = "relative";
+    input.style.zIndex = "1";
 
     if (!document.getElementById("txoko-gate-style")) {
       var style = document.createElement("style");
@@ -170,6 +176,20 @@
       }
     });
 
+    // Clicking anywhere along the row focuses the field, so the underline
+    // and the whitespace around it behave like part of the input.
+    var row = input.parentElement && input.parentElement.parentElement;
+    if (row && !row.dataset.txokoRow) {
+      row.dataset.txokoRow = "1";
+      row.style.cursor = "text";
+      row.addEventListener("mousedown", function (e) {
+        if (e.target === input) return;
+        if (e.target.closest && e.target.closest("[data-txoko-arrow]")) return;
+        e.preventDefault();
+        input.focus();
+      });
+    }
+
     // The arrow beside the field becomes the submit control.
     var scope = link || input.parentElement.parentElement || document;
     var candidates = scope.querySelectorAll("p");
@@ -178,6 +198,7 @@
         var arrow = candidates[k].parentElement || candidates[k];
         if (!arrow.dataset.txokoArrow) {
           arrow.dataset.txokoArrow = "1";
+          arrow.setAttribute("data-txoko-arrow", "1");
           arrow.style.cursor = "pointer";
           arrow.addEventListener(
             "click",
