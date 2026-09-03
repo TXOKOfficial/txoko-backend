@@ -89,9 +89,7 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
       solicitud → email → pantalla de confirmación → POST → código → `verify` OK.
       También verificado que el GET no aprueba, que el nombre se escapa, que un
       token inválido da 404 y que reabrir un link ya usado es idempotente.
-- [ ] Cargar los 3 registros DNS de Resend en GoDaddy y verificar el dominio
-- [ ] Pasar `FROM_EMAIL` a `Txoko <acceso@txoko-dining.com>` y `OWNER_EMAIL`
-      a la casilla real (hoy están en valores de prueba)
+- [x] Los 3 registros DNS cargados en GoDaddy (DKIM, SPF y MX en `send`)
 - [x] Dominio verificado en Resend y envíos saliendo desde
       `acceso@txoko-dining.com` (esa casilla no existe ni necesita existir)
 - [x] Circuito completo probado contra una casilla real, ida y vuelta:
