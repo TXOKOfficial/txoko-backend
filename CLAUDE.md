@@ -110,6 +110,10 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
 - [x] Verificado en vivo sobre txoko-dining.com: código inválido rechazado con
       mensaje, código válido entra a /services, /services directo rebota al
       gate, y el formulario envía y redirige a /access-requested
+- [x] Campo del gate confirmado por el usuario en un navegador real: se puede
+      clickear y escribir. Requirió dos arreglos: buscar la etiqueta por texto
+      (la hidratación de Framer dejaba huérfano el elemento) y agrandar el área
+      clickeable de 16px a 40px sin mover el layout
 - [x] CORS restringido a `SITE_URL`; el subdominio de Framer nunca se activó
 - [ ] Cambiar `OWNER_EMAIL` al mail de Josü cuando esté todo aprobado
       (hoy apunta a la casilla de Dario para no molestarlo con pruebas)
