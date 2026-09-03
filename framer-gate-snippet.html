@@ -1,112 +1,90 @@
 <!-- ═══════════════════════════════════════════════════════
-  SNIPPET FOR THE FRAMER GATE
-  Paste into: Site Settings → General → Custom Code → End of <body>
+  TXOKO — GATE WIRING
+  Paste into: Site Settings → Code → Add → End of <body>, applied to All pages.
 
-  BEFORE IT WORKS, CHECK ONE THING:
+  This hooks into the site as it is actually built:
 
-  The selectors below must match your Framer layers. In Framer, name a
-  layer in the right-hand panel and it becomes targetable as
-  [data-framer-name="LayerName"]. Rename the gate and form layers to match
-  the names used below and nothing else needs touching.
+  · /request-access has a native Framer form whose fields are already named
+    name, email, city, guests, preferredMonth and message. The script
+    intercepts its submit, posts to the backend and sends the visitor to
+    /access-requested. Framer's own hidden spam-trap fields are ignored.
 
-  Page paths are already set to this project: /services is unlocked by a
-  valid code, /access-requested is where a submitted form lands.
+  · The gate needs a real text input for the access code. Give that input
+    the layer name "CodeInput" in Framer (or an input named "code") and the
+    script will find it. The submit control next to it should be named
+    "EnterButton".
 
-  The form sends six fields: name, email, city, guests, month, message.
-  Only name and email are required; the rest are passed through to the
-  owner's email so they can decide without writing back to ask.
+  · /services is the page a valid code unlocks.
 ═══════════════════════════════════════════════════════ -->
 
 <script>
 (function () {
-  const API_BASE = "https://txoko-backend.vercel.app/api";
+  var API_BASE = "https://txoko-backend.vercel.app/api";
+  var INNER_PATH = "/services";
+  var REQUESTED_PATH = "/access-requested";
+  var STORAGE_KEY = "txoko_access";
 
-  // The page a valid code unlocks.
-  const INNER_PATH = "/services";
+  // Fields the backend accepts, mapped from the names Framer already uses.
+  var FIELD_MAP = {
+    name: "name",
+    email: "email",
+    city: "city",
+    guests: "guests",
+    preferredMonth: "month",
+    message: "message",
+  };
 
-  // Where to land after a request is submitted successfully.
-  const REQUESTED_PATH = "/access-requested";
-
-  const $ = (sel) => document.querySelector(sel);
-
-  // Reads a value from a Framer layer, falling back to a plain element id.
-  function readField(layerName, elementId) {
-    const el =
-      $('[data-framer-name="' + layerName + '"] input') ||
-      $('[data-framer-name="' + layerName + '"] textarea') ||
-      $("#" + elementId);
-    return el ? el.value.trim() : "";
+  function findMessageEl() {
+    return (
+      document.querySelector('[data-framer-name="GateMessage"]') ||
+      document.getElementById("gate-message")
+    );
   }
-
-  const codeInput = () =>
-    $('[data-framer-name="CodeInput"] input') || $("#access-code");
-  const submitBtn = () =>
-    $('[data-framer-name="EnterButton"]') || $("#access-submit");
-  const requestBtn = () =>
-    $('[data-framer-name="RequestButton"]') || $("#request-access");
-  const messageEl = () =>
-    $('[data-framer-name="GateMessage"]') || $("#gate-message");
 
   function showMessage(text, isError) {
-    const el = messageEl();
+    var el = findMessageEl();
     if (el) {
       el.textContent = text;
-      el.style.color = isError ? "#a33" : "#1a1a1a";
+      el.style.color = isError ? "#a33" : "inherit";
       el.style.opacity = "1";
+      return;
     }
+    // No message layer on the page yet: fall back to something visible so a
+    // failure is never silent.
+    if (isError) window.alert(text);
   }
 
-  // ── Verify a code ──
-  async function verifyCode() {
-    const input = codeInput();
-    const code = input ? input.value.trim() : "";
-    if (!code) return showMessage("Please enter your code.", true);
-
-    showMessage("Verifying…", false);
-    try {
-      const r = await fetch(API_BASE + "/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code }),
-      });
-      const data = await r.json();
-      if (data.valid) {
-        // Remember access so the code is not asked again this session
-        sessionStorage.setItem("txoko_access", "1");
-        window.location.href = INNER_PATH;
-      } else {
-        showMessage(data.error || "That code is not valid.", true);
+  // ── Access request form ───────────────────────────────
+  // Reads only the fields we know about. Framer adds hidden honeypot inputs
+  // (website, company, subject, title...) that must not be forwarded.
+  function collectFields(form) {
+    var payload = {};
+    Object.keys(FIELD_MAP).forEach(function (formName) {
+      var field = form.querySelector('[name="' + formName + '"]');
+      if (field && field.offsetParent !== null) {
+        payload[FIELD_MAP[formName]] = (field.value || "").trim();
       }
-    } catch (e) {
-      showMessage("Connection error. Please try again.", true);
-    }
+    });
+    return payload;
   }
 
-  // ── Request access ──
-  async function requestAccess() {
-    const payload = {
-      name: readField("NameInput", "request-name"),
-      email: readField("EmailInput", "request-email"),
-      city: readField("CityInput", "request-city"),
-      guests: readField("GuestsInput", "request-guests"),
-      month: readField("MonthInput", "request-month"),
-      message: readField("MessageInput", "request-message"),
-    };
+  async function submitRequest(form) {
+    var payload = collectFields(form);
 
     if (!payload.name || !payload.email) {
-      return showMessage("Please enter your name and email.", true);
+      showMessage("Please enter your name and email.", true);
+      return;
     }
 
     showMessage("Sending your request…", false);
     try {
-      const r = await fetch(API_BASE + "/request-access", {
+      var r = await fetch(API_BASE + "/request-access", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await r.json();
+      var data = await r.json();
       if (data.ok) {
-        showMessage(data.message, false);
         window.location.href = REQUESTED_PATH;
       } else {
         showMessage(data.error || "Your request could not be sent.", true);
@@ -116,42 +94,126 @@
     }
   }
 
-  // ── Wiring ──
-  document.addEventListener("DOMContentLoaded", function () {
-    const enter = submitBtn();
-    const request = requestBtn();
-    if (enter)
-      enter.addEventListener("click", function (e) {
+  function wireRequestForm() {
+    var forms = document.querySelectorAll("form");
+    Array.prototype.forEach.call(forms, function (form) {
+      if (form.dataset.txokoWired) return;
+      // Only the form that carries the fields we expect.
+      if (!form.querySelector('[name="email"]') || !form.querySelector('[name="name"]')) return;
+      form.dataset.txokoWired = "1";
+
+      // Capture phase so Framer's own handler does not also fire.
+      form.addEventListener(
+        "submit",
+        function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          submitRequest(form);
+        },
+        true
+      );
+    });
+  }
+
+  // ── Access code entry ─────────────────────────────────
+  function findCodeInput() {
+    var wrapper = document.querySelector('[data-framer-name="CodeInput"]');
+    if (wrapper) {
+      var inner = wrapper.querySelector("input");
+      if (inner) return inner;
+      if (wrapper.tagName === "INPUT") return wrapper;
+    }
+    return document.querySelector('input[name="code"]') || document.getElementById("access-code");
+  }
+
+  async function verifyCode() {
+    var input = findCodeInput();
+    var code = input ? (input.value || "").trim() : "";
+    if (!code) {
+      showMessage("Please enter your code.", true);
+      return;
+    }
+
+    showMessage("Verifying…", false);
+    try {
+      var r = await fetch(API_BASE + "/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code }),
+      });
+      var data = await r.json();
+      if (data.valid) {
+        try {
+          sessionStorage.setItem(STORAGE_KEY, "1");
+        } catch (e) {}
+        window.location.href = INNER_PATH;
+      } else {
+        showMessage(data.error || "That code is not valid.", true);
+      }
+    } catch (e) {
+      showMessage("Connection error. Please try again.", true);
+    }
+  }
+
+  function wireGate() {
+    var input = findCodeInput();
+    if (!input || input.dataset.txokoWired) return;
+    input.dataset.txokoWired = "1";
+
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
         e.preventDefault();
         verifyCode();
-      });
-    if (request)
-      request.addEventListener("click", function (e) {
-        e.preventDefault();
-        requestAccess();
-      });
+      }
+    });
 
-    // Pressing Enter in the code field also verifies
-    const input = codeInput();
-    if (input)
-      input.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
+    var button =
+      document.querySelector('[data-framer-name="EnterButton"]') ||
+      document.getElementById("access-submit");
+    if (button) {
+      button.addEventListener(
+        "click",
+        function (e) {
           e.preventDefault();
+          e.stopPropagation();
           verifyCode();
-        }
-      });
-  });
+        },
+        true
+      );
+    }
+  }
 
-  // ── Basic guard on the inner page ──
-  // Paste this same script globally and uncomment to bounce anyone who
-  // lands on the inner page without going through the gate.
-  //
-  // Note: this is a courtesy redirect, not a security boundary. Framer has
-  // no server-side control, so anyone who wants in can still get in.
-  //
-  // if (window.location.pathname.startsWith(INNER_PATH) &&
-  //     !sessionStorage.getItem("txoko_access")) {
-  //   window.location.href = "/";
-  // }
+  // ── Courtesy guard on the inner page ──────────────────
+  // Not a security boundary: Framer offers no server-side control, so this
+  // only redirects visitors who never went through the gate.
+  function guardInnerPage() {
+    if (window.location.pathname.indexOf(INNER_PATH) !== 0) return;
+    var granted = false;
+    try {
+      granted = sessionStorage.getItem(STORAGE_KEY) === "1";
+    } catch (e) {
+      granted = true; // storage blocked: do not lock anyone out
+    }
+    if (!granted) window.location.replace("/");
+  }
+
+  function init() {
+    wireRequestForm();
+    wireGate();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+
+  // Framer navigates client-side, so re-wire when the DOM changes.
+  var observer = new MutationObserver(function () {
+    init();
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // guardInnerPage(); // ← uncomment once the gate has a real code input
 })();
 </script>
