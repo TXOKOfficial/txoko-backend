@@ -54,6 +54,11 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
 - **Rate limit por IP** en `request-access` (3/hora) y `verify` (10 cada 10 min).
   El CORS no cumple esa función: es una regla del navegador, y el request se
   procesa igual aunque el origen no esté permitido.
+- **El campo del código lo construye el snippet, no el canvas.** En el diseño,
+  "ENTER ACCESS CODE" es un link directo a /services sin ningún input. El
+  script lo reemplaza por un `<input>` en tiempo de ejecución, copiando la
+  tipografía computada del label que reemplaza. Si algún día se agrega un campo
+  real en Framer, sacar `upgradeGate()` para que no se pisen.
 - **La validación del código es server-side; la persistencia de la sesión es
   client-side.** Framer no expone control a nivel de request, así que la página
   interna no queda protegida por el servidor. Es una decisión tomada a
@@ -98,17 +103,19 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
 - [x] Copy migrado a inglés y los seis campos del formulario llegando al owner
 - [x] Paths reales del sitio puestos en el snippet: `/services` es la página
       que abre el código y `/access-requested` el destino tras enviar el form
-- [ ] **Bloqueado**: Dario tiene *View Only* en el proyecto de Framer, que está
-      en el workspace de Josü (plan BASIC). Hasta que lo pase a *Full Access*
-      no se puede pegar el snippet ni renombrar capas, y el CLI de Framer
-      tampoco puede abrir el proyecto.
-- [ ] Pegar el snippet en Framer y renombrar las capas según los selectores
 - [x] Charset verificado en producción: "Ignacio Beltrán" y "San Sebastián"
       renderizan bien en el email del owner
-- [ ] Volver a probar desde el formulario real de Framer una vez cableado
+- [x] Snippet instalado en Framer (Site Settings → Code → "Txoko Gate",
+      End of body, todas las páginas) y **sitio publicado**
+- [x] Verificado en vivo sobre txoko-dining.com: código inválido rechazado con
+      mensaje, código válido entra a /services, /services directo rebota al
+      gate, y el formulario envía y redirige a /access-requested
+- [x] CORS restringido a `SITE_URL`; el subdominio de Framer nunca se activó
 - [ ] Cambiar `OWNER_EMAIL` al mail de Josü cuando esté todo aprobado
       (hoy apunta a la casilla de Dario para no molestarlo con pruebas)
-- [ ] Lockdown de CORS: sacar el subdominio de Framer de `ALLOWED_ORIGINS`
+- [ ] Nota de acceso: el CLI de Framer no puede abrir el proyecto porque está
+      autenticado con la cuenta de Dario y el proyecto vive en el workspace de
+      Josü. El trabajo se hizo por navegador con la sesión del owner.
 
 ## Notas técnicas
 
