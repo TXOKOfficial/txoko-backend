@@ -20,7 +20,8 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
 
 - **Hosting**: Vercel serverless functions
 - **Storage**: Upstash Redis vía Marketplace de Vercel
-  Keys: `request:{id}`, `pending:{email}`, `code:{CODE}`, `rl:{scope}:{ip}`
+  Keys: `request:{id}`, `pending:{email}`, `code:{CODE}`, `rl:{scope}:{ip}`,
+  `lock:request:{id}`
 - **Emails**: Resend, API REST directa, sin SDK
 - **Idioma**: todo el texto de cara al usuario (emails, pantallas de
   confirmación, mensajes del gate) está en inglés. El público es de Bay Area.
@@ -51,6 +52,19 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
   `charset=utf-8`. Sin eso, los nombres con acento llegaban partidos
   ("Beltrán" se veía "Beltr?n") y solo se notaba en el dato del visitante,
   no en el texto fijo.
+- **Aprobar y rechazar mandan el mail antes de guardar el estado.** Si Resend
+  falla, la solicitud queda `pending` (y el código se borra), así que el owner
+  vuelve a apretar el botón y listo. Al revés quedaba marcada como aprobada con
+  un código que nunca le llegó a nadie. Un lock corto (`lock:request:{id}`)
+  evita que un doble click genere dos códigos.
+- **Una solicitud repetida nunca se descarta en silencio.** Si el mismo email
+  vuelve a pedir acceso con una solicitud pendiente, no se crea otra, pero se
+  le reenvía el aviso al owner con los mismos links (como máximo cada 15 min).
+  Antes se descartaba sin mandar nada y el visitante igual veía "enviado", lo
+  que hacía parecer que el form no funcionaba.
+- **Cada envío queda en los logs de Vercel** con el id de Resend. Ojo: en Hobby
+  los logs duran 1 hora, así que diagnosticar hay que hacerlo en el momento o
+  mirando Resend → Emails.
 - **Rate limit por IP** en `request-access` (3/hora) y `verify` (10 cada 10 min).
   El CORS no cumple esa función: es una regla del navegador, y el request se
   procesa igual aunque el origen no esté permitido.
@@ -115,8 +129,12 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
       (la hidratación de Framer dejaba huérfano el elemento) y agrandar el área
       clickeable de 16px a 40px sin mover el layout
 - [x] CORS restringido a `SITE_URL`; el subdominio de Framer nunca se activó
-- [ ] Cambiar `OWNER_EMAIL` al mail de Josü cuando esté todo aprobado
-      (hoy apunta a la casilla de Dario para no molestarlo con pruebas)
+- [x] `OWNER_EMAIL` apunta al mail de Josü desde el 3/9 (con redeploy)
+- [x] Fallos silenciosos corregidos (14/9): solicitud repetida reenvía el aviso,
+      aprobar y rechazar ya no quedan a medias si falla el envío, logs de cada
+      envío. Probado con Redis y Resend simulados
+- [ ] Probar para cada test un email distinto (ej. `hello+test1@dovvstudio.com`)
+      o esperar 15 min: el mismo email pendiente no genera un aviso nuevo antes
 - [ ] Nota de acceso: el CLI de Framer no puede abrir el proyecto porque está
       autenticado con la cuenta de Dario y el proyecto vive en el workspace de
       Josü. El trabajo se hizo por navegador con la sesión del owner.

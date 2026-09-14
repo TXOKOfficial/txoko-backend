@@ -7,6 +7,7 @@ import {
   sendEmail,
   escapeHtml,
   safeEqual,
+  acquireLock,
   message,
   confirmPage,
   emailLayout,
@@ -14,6 +15,8 @@ import {
 
 export default async function handler(req, res) {
   const { id, token } = req.query;
+  const lockKey = `lock:request:${id}`;
+  let locked = false;
 
   try {
     const request = await redis.get(`request:${id}`);
@@ -34,11 +37,20 @@ export default async function handler(req, res) {
     }
 
     // Step 2: actually decline.
-    request.status = "rejected";
-    await redis.set(`request:${id}`, request);
-    await redis.del(`pending:${request.email}`);
+    locked = await acquireLock(lockKey);
+    if (!locked) {
+      return res.status(409).send(message("This request is already being processed. Reload this page in a moment."));
+    }
+    // Read again under the lock: a click that finished a moment ago may have
+    // handled it after the first read.
+    const current = await redis.get(`request:${id}`);
+    if (!current || current.status !== "pending") {
+      return res.status(200).send(message("This request was already handled. Open the link again to see its state."));
+    }
 
-    await sendEmail({
+    // Email first, then mark as declined: if delivery fails the request stays
+    // pending and the owner can press Decline again.
+    const sent = await sendEmail({
       to: request.email,
       subject: "Regarding your request — Txoko",
       html: emailLayout(`
@@ -51,9 +63,19 @@ export default async function handler(req, res) {
       `),
     });
 
+    request.status = "rejected";
+    request.rejectedAt = new Date().toISOString();
+    await redis.set(`request:${id}`, request);
+    await redis.del(`pending:${request.email}`);
+
+    console.log(`reject: ${id} declined, ${request.email} notified (resend ${sent.id})`);
     return res.status(200).send(message(`Declined. ${escapeHtml(request.email)} has been notified.`));
   } catch (err) {
     console.error("reject error:", err);
-    return res.status(500).send(message("Something went wrong while declining the request."));
+    return res
+      .status(500)
+      .send(message("Something went wrong while declining the request. Nothing was sent: go back and press Decline again."));
+  } finally {
+    if (locked) await redis.del(lockKey).catch(() => {});
   }
 }
