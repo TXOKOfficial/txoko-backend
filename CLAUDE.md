@@ -143,11 +143,16 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
 - [x] Fallos silenciosos corregidos (14/9): solicitud repetida reenvía el aviso,
       aprobar y rechazar ya no quedan a medias si falla el envío, logs de cada
       envío. Probado con Redis y Resend simulados
+- [x] Código recordado en el dispositivo y guardable como contraseña: snippet
+      reemplazado en Framer, publicado y confirmado por el usuario en un
+      navegador real (15/9)
 - [ ] Probar para cada test un email distinto (ej. `hello+test1@dovvstudio.com`)
       o esperar 15 min: el mismo email pendiente no genera un aviso nuevo antes
 - [ ] Nota de acceso: el CLI de Framer no puede abrir el proyecto porque está
       autenticado con la cuenta de Dario y el proyecto vive en el workspace de
-      Josü. El trabajo se hizo por navegador con la sesión del owner.
+      Josü (Dario figura como "Can view"). Reconfirmado el 15/9: el conector
+      conecta con otros proyectos pero con TXOKO se corta por timeout. Los
+      cambios al snippet los pega el usuario a mano en Site Settings → Code.
 
 ## Notas técnicas
 
