@@ -81,6 +81,22 @@
     } catch (e) {}
   }
 
+  // ── Pointer cursor on every button ────────────────────
+  // Framer renders its button components as a <button> nested inside the
+  // link. The link gets the pointer, but the browser's default stylesheet
+  // gives <button> the arrow, and the button covers the whole link, so the
+  // hand never shows. Form submit buttons have the same problem.
+  function ensureCursorStyle() {
+    if (document.getElementById("txoko-cursor-style")) return;
+    var style = document.createElement("style");
+    style.id = "txoko-cursor-style";
+    style.textContent =
+      'button:not(:disabled),[role="button"],input[type="submit"],' +
+      'input[type="button"],summary,select{cursor:pointer;}';
+    (document.head || document.documentElement).appendChild(style);
+  }
+  ensureCursorStyle();
+
   if (/[?&]reset\b/.test(window.location.search)) forgetCode();
 
   // Returning visitor on the gate: straight in, before the page even draws.
@@ -460,6 +476,7 @@
   }
 
   function init() {
+    ensureCursorStyle();
     upgradeGate();
     wireRequestForm();
     greetVisitor();
