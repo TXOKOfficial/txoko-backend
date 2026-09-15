@@ -84,6 +84,16 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
   en `localStorage` junto al código; los códigos recordados antes de esto lo
   buscan solos en la siguiente revalidación. Si en Framer se cambia el texto
   "Welcome to", hay que actualizar `GREETING_PATTERN` en el snippet.
+- **El formulario de /services va a `/api/consultation`.** Es el mismo form de
+  Framer que el de /request-access, pero quien lo manda ya está adentro. Al
+  owner le llega "Consultation request" sin botones de aprobar, con un aviso de
+  si ya tiene acceso: el código lo manda el snippet desde el navegador, pero se
+  confirma contra Redis, nunca se confía en la página. Si el mail no coincide
+  con el dueño del código, lo aclara. No guarda nada. Al visitante se le
+  reemplaza el form por un agradecimiento con la tipografía de los labels.
+- **Cursor de manito en todos los botones.** Framer mete un `<button>` dentro
+  de cada link y el cursor por defecto del botón tapaba la manito del link.
+  El snippet agrega una regla global para `button`, `[role=button]` y submits.
 - **El campo del código es `type="password"`**, para que Chrome, Safari y los
   gestores ofrezcan guardarlo. Se ve con puntitos: Chrome ignora
   `-webkit-text-security: none` en campos de contraseña, así que no hay forma

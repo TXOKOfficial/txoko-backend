@@ -40,6 +40,11 @@ The system has three parts:
 
 5. Comes back another day              → the browser remembers the code
                                          and goes straight in
+
+6. Sends "Request a Consultation"      → snippet → POST /api/consultation
+   from /services                        email to the owner saying this person
+                                         already has access (no Approve / Decline)
+                                         the form is replaced by a thank you
 ```
 
 ---
@@ -51,7 +56,7 @@ The system has three parts:
 | `/` | the gate: logo, code field and a link to request access |
 | `/request-access` | native Framer form: name, email, city, guests, preferredMonth, message |
 | `/access-requested` | confirmation shown after the form is sent |
-| `/services` | the inner page, the actual site |
+| `/services` | the inner page, the actual site. Its "Request a Consultation" form is the same Framer form as `/request-access` |
 
 ---
 
@@ -61,7 +66,7 @@ Framer does not allow custom logic inside the design, so all the behaviour lives
 in a script pasted into
 **Framer → Site Settings → Code → "Txoko Gate"** (End of body, all pages).
 
-It does five things:
+It does seven things:
 
 1. **Builds the code field.** In the design, "ENTER ACCESS CODE" is just a text
    with a link. The script swaps it for a real input when the page loads.
@@ -71,6 +76,10 @@ It does five things:
    clears it, which is handy for testing.
 5. **Greets by name**: on `/services` it turns "Welcome to" into
    "Name, welcome to".
+6. **Sends the consultation form** on `/services` to `/api/consultation` and
+   shows a thank you in place of the form.
+7. **Shows the hand cursor on every button.** Framer nests a `<button>` inside
+   each link, and the browser's default arrow cursor on it hid the link's hand.
 
 The script finds elements by their text. **If any of these texts or paths change
 in Framer, the snippet must be updated:**
@@ -89,7 +98,7 @@ edit it in the repo, paste it into Framer by hand, then publish the site.
 
 ## 5. The backend
 
-Four serverless functions in `api/` plus shared helpers in `lib/utils.js`.
+Five serverless functions in `api/` plus shared helpers in `lib/utils.js`.
 
 | Endpoint | Called by | What it does |
 |---|---|---|
@@ -97,6 +106,7 @@ Four serverless functions in `api/` plus shared helpers in `lib/utils.js`.
 | `GET` and `POST /api/approve` | link in the owner's email | GET shows a confirm button; POST generates the code and sends it |
 | `GET` and `POST /api/reject` | link in the owner's email | same as approve, but sends the decline email |
 | `POST /api/verify` | the gate | answers whether the code is valid and returns the first name |
+| `POST /api/consultation` | the form on `/services` | emails the owner a consultation, confirming against Redis whether the sender already has access. Stores nothing |
 
 ### Services
 
@@ -114,7 +124,7 @@ Four serverless functions in `api/` plus shared helpers in `lib/utils.js`.
 | `request:{id}` | the request: form data, token and status (`pending`, `approved`, `rejected`) | 30 days if nobody handles it; kept once handled |
 | `pending:{email}` | id of that email's pending request | removed once handled |
 | `code:{CODE}` | email, name, approval date, number of uses | never expires |
-| `rl:request:{ip}`, `rl:verify:{ip}` | rate limit counters | 1 hour and 10 minutes |
+| `rl:request:{ip}`, `rl:consultation:{ip}`, `rl:verify:{ip}` | rate limit counters | 1 hour, 1 hour and 10 minutes |
 | `lock:request:{id}` | stops a double click from approving twice | 60 seconds |
 
 ### Environment variables
@@ -151,7 +161,7 @@ sensitive lives in environment variables.
 | I want to | How |
 |---|---|
 | change the inbox that receives requests | `OWNER_EMAIL` in Vercel, then Redeploy |
-| change the wording of an email | edit `api/approve.js`, `api/reject.js` or `api/request-access.js` and push |
+| change the wording of an email | edit `api/approve.js`, `api/reject.js`, `api/request-access.js` or `api/consultation.js` and push |
 | revoke someone's access | Vercel → Storage → open Upstash → Data Browser → delete `code:TXK-...`. Their browser forgets it on the next visit |
 | see who requested access | Upstash → Data Browser, search `request:*` |
 | check whether an email went out | Resend → Emails. Vercel logs on Hobby only last 1 hour |

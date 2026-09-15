@@ -12,6 +12,8 @@ import {
   escapeHtml,
   cleanText,
   emailLayout,
+  readFormDetails,
+  detailsCardHtml,
   generateToken,
   clientIp,
   rateLimit,
@@ -22,16 +24,6 @@ const THIRTY_DAYS = 60 * 60 * 24 * 30;
 // A repeated request for an email that is still pending reminds the owner,
 // but no more often than this.
 const RENOTIFY_AFTER_MS = 15 * 60 * 1000;
-
-// Optional fields coming from the gate form, with the label shown in the
-// owner's email and the maximum length accepted for each.
-const DETAIL_FIELDS = [
-  { key: "city", label: "City", maxLength: 80 },
-  { key: "guests", label: "Guests", maxLength: 40 },
-  { key: "month", label: "Preferred month", maxLength: 40 },
-];
-
-const MESSAGE_MAX_LENGTH = 1200;
 
 export default async function handler(req, res) {
   if (applyCors(req, res)) return;
@@ -92,13 +84,8 @@ export default async function handler(req, res) {
       createdAt: now,
       notifiedAt: now,
       status: "pending",
+      ...readFormDetails(body),
     };
-    for (const field of DETAIL_FIELDS) {
-      const value = cleanText(body[field.key], field.maxLength);
-      if (value) request[field.key] = value;
-    }
-    const visitorMessage = cleanText(body.message, MESSAGE_MAX_LENGTH);
-    if (visitorMessage) request.message = visitorMessage;
 
     await redis.set(`request:${request.id}`, request, { ex: THIRTY_DAYS });
     await redis.set(`pending:${cleanEmail}`, request.id, { ex: THIRTY_DAYS });
@@ -134,22 +121,6 @@ function notifyOwner(request) {
   const approveUrl = `${base}/api/approve?${query}`;
   const declineUrl = `${base}/api/reject?${query}`;
 
-  // Everything the visitor typed, so the owner can decide without having to
-  // write back and ask.
-  const detailRows = DETAIL_FIELDS.filter((field) => request[field.key])
-    .map(
-      (field) =>
-        `<tr>
-          <td style="padding: 2px 12px 2px 0; color: #8a8378; font-size: 13px; white-space: nowrap;">${field.label}</td>
-          <td style="padding: 2px 0; font-size: 14px;">${escapeHtml(request[field.key])}</td>
-        </tr>`
-    )
-    .join("");
-
-  const messageBlock = request.message
-    ? `<p style="font-size: 14px; line-height: 1.7; color: #444; margin: 20px 0 0; padding-left: 14px; border-left: 2px solid #e2ddd4; font-style: italic;">${escapeHtml(request.message)}</p>`
-    : "";
-
   // Replying to this email writes straight to the applicant.
   return sendEmail({
     to: process.env.OWNER_EMAIL,
@@ -159,14 +130,7 @@ function notifyOwner(request) {
       <div style="font-family: Georgia, serif; max-width: 520px; margin: 0 auto; padding: 40px 24px; color: #1a1a1a;">
         <h2 style="font-weight: normal; letter-spacing: 2px; text-transform: uppercase; font-size: 16px;">Txoko</h2>
         <p style="font-size: 15px; line-height: 1.6;">New access request:</p>
-        <div style="background: #f7f5f2; padding: 20px 24px; border-left: 3px solid #b8963e;">
-          <p style="margin: 0 0 12px; font-size: 16px;">
-            <strong>${escapeHtml(request.name)}</strong><br/>
-            <a href="mailto:${escapeHtml(request.email)}" style="color: #6b6255; font-size: 14px;">${escapeHtml(request.email)}</a>
-          </p>
-          ${detailRows ? `<table style="border-collapse: collapse;">${detailRows}</table>` : ""}
-          ${messageBlock}
-        </div>
+        ${detailsCardHtml(request)}
         <div style="margin-top: 32px;">
           <a href="${approveUrl}" style="display: inline-block; background: #1a1a1a; color: #ffffff; padding: 12px 28px; text-decoration: none; font-size: 13px; letter-spacing: 1px; text-transform: uppercase;">Approve</a>
           &nbsp;&nbsp;

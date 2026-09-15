@@ -27,6 +27,10 @@
   5. Greeting — on /services, "Welcome to" becomes "Dario, welcome to",
      using the first name stored with the code.
 
+  6. Consultation form — the same form on /services goes to
+     /api/consultation instead: the owner is told this person already has
+     access, and the visitor sees a thank you in place of the form.
+
   If any element is missing the script leaves the page untouched rather
   than breaking it.
 ═══════════════════════════════════════════════════════ -->
@@ -362,7 +366,16 @@
     return payload;
   }
 
+  // The same Framer form lives on /request-access and, as "Request a
+  // Consultation", on /services. Someone on /services is already inside, so
+  // that one goes to the consultation endpoint: the owner gets a plain email
+  // saying this person already has access, with no Approve / Decline.
+  function isConsultationForm() {
+    return window.location.pathname.indexOf(INNER_PATH) === 0;
+  }
+
   async function submitRequest(form) {
+    if (form.dataset.txokoSending) return;
     var payload = collectFields(form);
 
     if (!payload.name || !payload.email) {
@@ -370,22 +383,67 @@
       return;
     }
 
+    var consultation = isConsultationForm();
+    if (consultation) payload.code = getSavedCode();
+
+    form.dataset.txokoSending = "1";
     showMessage("Sending your request…", false);
     try {
-      var r = await fetch(API_BASE + "/request-access", {
+      var r = await fetch(API_BASE + (consultation ? "/consultation" : "/request-access"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
       var data = await r.json();
-      if (data.ok) {
+      if (data.ok && consultation) {
+        showConsultationThanks(form, payload.name);
+      } else if (data.ok) {
         window.location.href = REQUESTED_PATH;
       } else {
         showMessage(data.error || "Your request could not be sent.", true);
       }
     } catch (e) {
       showMessage("Connection error. Please try again.", true);
+    } finally {
+      delete form.dataset.txokoSending;
     }
+  }
+
+  // Replaces the consultation form with a short thank you, in the same
+  // typography as the form's own labels, keeping its height so the page does
+  // not jump.
+  function showConsultationThanks(form, fullName) {
+    var label = form.querySelector("p, label");
+    var ls = window.getComputedStyle(label || form);
+    var firstName = String(fullName || "").trim().split(/\s+/)[0];
+
+    var box = document.createElement("div");
+    box.id = "txoko-consultation-thanks";
+    box.style.cssText =
+      "display:flex;flex-direction:column;align-items:center;justify-content:center;" +
+      "gap:16px;text-align:center;box-sizing:border-box;width:100%;padding:24px;" +
+      "min-height:" + Math.min(form.offsetHeight, 420) + "px;";
+
+    var title = document.createElement("p");
+    title.textContent = "Request received";
+    title.style.cssText =
+      "margin:0;text-transform:uppercase;letter-spacing:0.3em;" +
+      "font-family:" + ls.fontFamily + ";font-size:" + ls.fontSize + ";color:" + ls.color + ";";
+
+    var text = document.createElement("p");
+    text.textContent =
+      "Thank you" + (firstName ? ", " + firstName : "") + ". We will be in touch shortly.";
+    text.style.cssText =
+      "margin:0;font-size:16px;line-height:1.6;color:rgba(236,227,213,0.85);" +
+      "font-family:" + ls.fontFamily + ";";
+
+    box.appendChild(title);
+    box.appendChild(text);
+
+    var message = document.getElementById("txoko-message");
+    if (message) message.style.opacity = "0";
+    form.style.display = "none";
+    form.parentNode.insertBefore(box, form.nextSibling);
   }
 
   function wireRequestForm() {
