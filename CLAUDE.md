@@ -73,6 +73,16 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
   script lo reemplaza por un `<input>` en tiempo de ejecución, copiando la
   tipografía computada del label que reemplaza. Si algún día se agrega un campo
   real en Framer, sacar `upgradeGate()` para que no se pisen.
+- **El código se recuerda en el dispositivo.** Tras validarlo, el snippet lo
+  guarda en `localStorage` y el visitante que vuelve salta el gate directo a
+  /services. Se revalida contra `verify` una vez por pestaña y, si el backend
+  dice que ya no existe, se olvida y vuelve al gate (un error de red o un 429
+  no lo echa). `/?reset` lo borra, útil para probar.
+- **El campo del código es `type="password"`**, para que Chrome, Safari y los
+  gestores ofrezcan guardarlo. Se ve con puntitos: Chrome ignora
+  `-webkit-text-security: none` en campos de contraseña, así que no hay forma
+  confiable de mostrarlo. En Chrome/Edge/Android además se pide guardar con
+  `PasswordCredential`.
 - **La validación del código es server-side; la persistencia de la sesión es
   client-side.** Framer no expone control a nivel de request, así que la página
   interna no queda protegida por el servidor. Es una decisión tomada a

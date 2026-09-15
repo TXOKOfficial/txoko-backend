@@ -19,6 +19,11 @@
      gate. A courtesy redirect, not a security boundary: Framer has no
      server-side control, so this stops the curious, not the determined.
 
+  4. Remembered access — a verified code is kept on the device, so a
+     returning visitor skips the gate. It is re-checked once per tab and
+     forgotten if the backend no longer knows it. The field is a password
+     field so browsers offer to save the code. /?reset forgets it.
+
   If any element is missing the script leaves the page untouched rather
   than breaking it.
 ═══════════════════════════════════════════════════════ -->
@@ -28,7 +33,41 @@
   var API_BASE = "https://txoko-backend.vercel.app/api";
   var INNER_PATH = "/services";
   var REQUESTED_PATH = "/access-requested";
-  var STORAGE_KEY = "txoko_access";
+  var STORAGE_KEY = "txoko_access"; // legacy per-tab flag, still honoured
+  var SAVED_CODE_KEY = "txoko_code"; // code remembered on this device
+
+  // ── Remembered access ─────────────────────────────────
+  // A verified code is kept in localStorage, so the visitor is not asked
+  // again on this browser. Opening the site with ?reset forgets it.
+  function getSavedCode() {
+    try {
+      return localStorage.getItem(SAVED_CODE_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function saveCode(code) {
+    try {
+      localStorage.setItem(SAVED_CODE_KEY, code);
+      sessionStorage.setItem(STORAGE_KEY, "1");
+    } catch (e) {}
+  }
+
+  function forgetCode() {
+    try {
+      localStorage.removeItem(SAVED_CODE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
+    } catch (e) {}
+  }
+
+  if (/[?&]reset\b/.test(window.location.search)) forgetCode();
+
+  // Returning visitor on the gate: straight in, before the page even draws.
+  if (window.location.pathname === "/" && getSavedCode()) {
+    window.location.replace(INNER_PATH);
+    return;
+  }
 
   // Backend field names, keyed by the names Framer already uses.
   var FIELD_MAP = {
@@ -100,11 +139,17 @@
 
     var cs = window.getComputedStyle(label);
     var input = document.createElement("input");
-    input.type = "text";
+    // A password field, so browsers and password managers (Chrome, Safari
+    // Keychain, 1Password) offer to save the code and fill it in later. The
+    // characters show as dots: Chrome ignores -webkit-text-security on
+    // password fields, so there is no reliable way to keep them visible.
+    input.type = "password";
     input.id = "txoko-code";
+    input.name = "access-code";
     input.placeholder = (label.textContent || "Enter access code").trim();
     input.setAttribute("aria-label", "Access code");
-    input.setAttribute("autocomplete", "off");
+    input.setAttribute("autocomplete", "current-password");
+    input.setAttribute("autocapitalize", "characters");
     input.spellcheck = false;
 
     // Inherit the typography of the label it replaces, so the field keeps
@@ -137,7 +182,8 @@
       var style = document.createElement("style");
       style.id = "txoko-gate-style";
       style.textContent =
-        "#txoko-code::placeholder{color:" + cs.color + ";opacity:1;}";
+        "#txoko-code::placeholder{color:" + cs.color + ";opacity:1;}" +
+        "#txoko-code::-ms-reveal{display:none;}";
       document.head.appendChild(style);
     }
 
@@ -216,6 +262,28 @@
     }
   }
 
+  // Chrome, Edge and Android ask to save the code in the password manager
+  // through this API. Safari and Firefox do not have it; they rely on the
+  // password field itself. Never blocks entry for more than a moment.
+  function offerToSaveCode(code) {
+    if (!window.PasswordCredential || !navigator.credentials) return Promise.resolve();
+    try {
+      var credential = new PasswordCredential({
+        id: "Txoko",
+        password: code,
+        name: "Txoko access code",
+      });
+      return Promise.race([
+        navigator.credentials.store(credential).catch(function () {}),
+        new Promise(function (resolve) {
+          setTimeout(resolve, 1500);
+        }),
+      ]);
+    } catch (e) {
+      return Promise.resolve();
+    }
+  }
+
   async function verifyCode(input) {
     var code = (input.value || "").trim();
     if (!code) {
@@ -232,9 +300,9 @@
       });
       var data = await r.json();
       if (data.valid) {
-        try {
-          sessionStorage.setItem(STORAGE_KEY, "1");
-        } catch (e) {}
+        code = code.toUpperCase();
+        saveCode(code);
+        await offerToSaveCode(code);
         window.location.href = INNER_PATH;
       } else {
         showMessage(data.error || "That code is not valid.", true);
@@ -307,13 +375,41 @@
   // ── 3. Courtesy guard on the inner page ───────────────
   function guardInnerPage() {
     if (window.location.pathname.indexOf(INNER_PATH) !== 0) return;
-    var granted = false;
+    var checkedThisTab = false;
     try {
-      granted = sessionStorage.getItem(STORAGE_KEY) === "1";
+      checkedThisTab = sessionStorage.getItem(STORAGE_KEY) === "1";
     } catch (e) {
-      granted = true; // storage blocked: never lock a visitor out over this
+      return; // storage blocked: never lock a visitor out over this
     }
-    if (!granted) window.location.replace("/");
+    if (checkedThisTab) return;
+
+    var saved = getSavedCode();
+    if (!saved) {
+      window.location.replace("/");
+      return;
+    }
+
+    // Remembered code: let the visitor in right away and confirm with the
+    // backend once per tab. Only an explicit "not valid" (a code removed
+    // from Redis) sends them back; a network error or rate limit does not.
+    try {
+      sessionStorage.setItem(STORAGE_KEY, "1");
+    } catch (e) {}
+    fetch(API_BASE + "/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: saved }),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (data && data.valid === false && !data.error) {
+          forgetCode();
+          window.location.replace("/");
+        }
+      })
+      .catch(function () {});
   }
 
   function init() {
