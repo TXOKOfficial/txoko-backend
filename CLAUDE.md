@@ -78,6 +78,12 @@ Gate (Framer) ──POST──> /api/verify ──> valida el código contra Red
   /services. Se revalida contra `verify` una vez por pestaña y, si el backend
   dice que ya no existe, se olvida y vuelve al gate (un error de red o un 429
   no lo echa). `/?reset` lo borra, útil para probar.
+- **Saludo con el nombre en /services.** `verify` devuelve el primer nombre
+  guardado con el código y el snippet cambia "Welcome to" por
+  "Dario, welcome to" (Framer ya lo muestra en mayúsculas). El nombre se guarda
+  en `localStorage` junto al código; los códigos recordados antes de esto lo
+  buscan solos en la siguiente revalidación. Si en Framer se cambia el texto
+  "Welcome to", hay que actualizar `GREETING_PATTERN` en el snippet.
 - **El campo del código es `type="password"`**, para que Chrome, Safari y los
   gestores ofrezcan guardarlo. Se ve con puntitos: Chrome ignora
   `-webkit-text-security: none` en campos de contraseña, así que no hay forma

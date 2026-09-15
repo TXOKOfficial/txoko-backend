@@ -24,6 +24,9 @@
      forgotten if the backend no longer knows it. The field is a password
      field so browsers offer to save the code. /?reset forgets it.
 
+  5. Greeting — on /services, "Welcome to" becomes "Dario, welcome to",
+     using the first name stored with the code.
+
   If any element is missing the script leaves the page untouched rather
   than breaking it.
 ═══════════════════════════════════════════════════════ -->
@@ -35,6 +38,7 @@
   var REQUESTED_PATH = "/access-requested";
   var STORAGE_KEY = "txoko_access"; // legacy per-tab flag, still honoured
   var SAVED_CODE_KEY = "txoko_code"; // code remembered on this device
+  var SAVED_NAME_KEY = "txoko_name"; // first name, for the greeting
 
   // ── Remembered access ─────────────────────────────────
   // A verified code is kept in localStorage, so the visitor is not asked
@@ -54,9 +58,25 @@
     } catch (e) {}
   }
 
+  function getSavedName() {
+    try {
+      return localStorage.getItem(SAVED_NAME_KEY) || "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function saveName(name) {
+    if (!name) return;
+    try {
+      localStorage.setItem(SAVED_NAME_KEY, name);
+    } catch (e) {}
+  }
+
   function forgetCode() {
     try {
       localStorage.removeItem(SAVED_CODE_KEY);
+      localStorage.removeItem(SAVED_NAME_KEY);
       sessionStorage.removeItem(STORAGE_KEY);
     } catch (e) {}
   }
@@ -302,6 +322,7 @@
       if (data.valid) {
         code = code.toUpperCase();
         saveCode(code);
+        saveName(data.name);
         await offerToSaveCode(code);
         window.location.href = INNER_PATH;
       } else {
@@ -381,13 +402,15 @@
     } catch (e) {
       return; // storage blocked: never lock a visitor out over this
     }
-    if (checkedThisTab) return;
-
     var saved = getSavedCode();
     if (!saved) {
-      window.location.replace("/");
+      // A per-tab flag without a remembered code still counts as access.
+      if (!checkedThisTab) window.location.replace("/");
       return;
     }
+    // Already confirmed in this tab. Codes remembered before the greeting
+    // existed have no name yet, so those are checked once more to fetch it.
+    if (checkedThisTab && getSavedName()) return;
 
     // Remembered code: let the visitor in right away and confirm with the
     // backend once per tab. Only an explicit "not valid" (a code removed
@@ -407,14 +430,39 @@
         if (data && data.valid === false && !data.error) {
           forgetCode();
           window.location.replace("/");
+        } else if (data && data.valid && data.name) {
+          saveName(data.name);
+          greetVisitor();
         }
       })
       .catch(function () {});
   }
 
+  // ── 4. Greeting on the inner page ─────────────────────
+  // "Welcome to" above the logo becomes "Dario, welcome to". Framer already
+  // renders that line in uppercase, so only the words change. The label is
+  // found by its text, like the gate field, because hydration re-renders it.
+  var GREETING_PATTERN = /^\s*(?:[^,]*,\s*)?welcome to\s*$/i;
+
+  function greetVisitor() {
+    if (window.location.pathname.indexOf(INNER_PATH) !== 0) return;
+    var name = getSavedName();
+    if (!name) return;
+
+    var target = name + ", welcome to ";
+    var paragraphs = document.querySelectorAll("p");
+    for (var i = 0; i < paragraphs.length; i++) {
+      var p = paragraphs[i];
+      if (p.children.length === 0 && GREETING_PATTERN.test(p.textContent || "")) {
+        if (p.textContent !== target) p.textContent = target;
+      }
+    }
+  }
+
   function init() {
     upgradeGate();
     wireRequestForm();
+    greetVisitor();
   }
 
   guardInnerPage();

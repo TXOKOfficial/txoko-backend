@@ -41,7 +41,10 @@ export default async function handler(req, res) {
     entry.uses = (entry.uses || 0) + 1;
     await redis.set(`code:${normalized}`, entry);
 
-    return res.status(200).json({ valid: true });
+    // First name only, for the greeting on the inner page.
+    const firstName = String(entry.name || "").trim().split(/\s+/)[0].slice(0, 24);
+
+    return res.status(200).json({ valid: true, ...(firstName ? { name: firstName } : {}) });
   } catch (err) {
     console.error("verify error:", err);
     return res.status(500).json({ valid: false, error: "Something went wrong." });
