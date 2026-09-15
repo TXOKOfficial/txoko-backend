@@ -152,6 +152,8 @@ al vincular la base al proyecto. `lib/utils.js` también acepta las viejas
 - [x] Código recordado en el dispositivo y guardable como contraseña: snippet
       reemplazado en Framer, publicado y confirmado por el usuario en un
       navegador real (15/9)
+- [x] Saludo por nombre publicado y confirmado en vivo por el usuario:
+      "IGNACIO, WELCOME TO" con el código de prueba (15/9)
 - [ ] Probar para cada test un email distinto (ej. `hello+test1@dovvstudio.com`)
       o esperar 15 min: el mismo email pendiente no genera un aviso nuevo antes
 - [ ] Nota de acceso: el CLI de Framer no puede abrir el proyecto porque está
